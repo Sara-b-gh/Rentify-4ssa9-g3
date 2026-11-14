@@ -1,0 +1,66 @@
+# ===== Configuration du microservice Réservation =====
+server:
+  port: 8082
+
+spring:
+  application:
+    name: reservation-service
+
+  # Config Server : "optional:" permet de démarrer même s'il n'est pas encore lancé
+  config:
+    import: "optional:configserver:http://localhost:8888"
+
+  # Base de données MySQL : une base propre à ce service (reservation_db)
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:reservation_db}?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    username: ${DB_USER:root}
+    password: ${DB_PASSWORD:}
+
+  jpa:
+    hibernate:
+      ddl-auto: update        # crée/met à jour les tables automatiquement (développement)
+    open-in-view: false
+
+  # RabbitMQ : bus d'événements
+  rabbitmq:
+    host: ${RABBIT_HOST:localhost}
+    port: 5672
+    username: ${RABBIT_USER:guest}
+    password: ${RABBIT_PASSWORD:guest}
+    listener:
+      simple:
+        auto-startup: ${RABBIT_ENABLED:false}   # false tant que RabbitMQ n'est pas lancé
+
+  cloud:
+    openfeign:
+      circuitbreaker:
+        enabled: true          # Resilience4j protège les appels Feign
+      client:
+        config:
+          default:
+            connectTimeout: 2000   # ms
+            readTimeout: 3000      # ms : au-delà => refus de la réservation
+
+eureka:
+  client:
+    # false tant qu'Eureka n'est pas lancé ; mettre EUREKA_ENABLED=true ensuite
+    enabled: ${EUREKA_ENABLED:false}
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka}
+
+# Adresse directe du service Flotte (sert quand Eureka est désactivé).
+# Laisser vide pour utiliser Eureka (nom "flotte-service").
+rentify:
+  flotte:
+    url: ${FLOTTE_URL:http://localhost:8081}
+  events:
+    exchange: rentify.events
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  health:
+    rabbit:
+      enabled: ${RABBIT_ENABLED:false}
