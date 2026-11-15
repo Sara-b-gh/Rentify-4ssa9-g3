@@ -29,6 +29,9 @@ spring:
     password: ${RABBIT_PASSWORD:guest}
 
   cloud:
+    circuitbreaker:
+      resilience4j:
+        disable-time-limiter: true   # le délai est géré par readTimeout (3 s) ci-dessous
     openfeign:
       circuitbreaker:
         enabled: true          # Resilience4j protège les appels Feign
@@ -53,6 +56,13 @@ rentify:
     url: ${CONTRATS_URL:http://localhost:8083}
   events:
     exchange: rentify.events
+
+# Circuit breaker : délai max d'un appel Feign avant de passer au fallback (Resilience4j)
+resilience4j:
+  timelimiter:
+    configs:
+      default:
+        timeout-duration: 5s
 
 management:
   endpoints:

@@ -66,8 +66,20 @@ public class Infraction {
         this.statut = StatutInfraction.CONDUCTEUR_IDENTIFIE;
     }
 
+    /** Correction manuelle par l'agent (PATCH) : remplace le conducteur identifié. */
+    public void corrigerConducteur(UUID contratId, String conducteurId) {
+        if (contratId == null || conducteurId == null || conducteurId.isBlank()) {
+            throw new IllegalArgumentException("Le contrat et le conducteur sont obligatoires");
+        }
+        this.identification = new IdentificationConducteur(contratId, conducteurId);
+        this.statut = StatutInfraction.CONDUCTEUR_IDENTIFIE;
+    }
+
     /** Aucun contrat actif à cette date : l'amende reste à la charge de l'agence. */
     public void marquerNonImputable() {
+        if (statut == StatutInfraction.CONDUCTEUR_IDENTIFIE) {
+            throw new IllegalStateException("Le conducteur est déjà identifié");
+        }
         this.statut = StatutInfraction.NON_IMPUTABLE;
     }
 
