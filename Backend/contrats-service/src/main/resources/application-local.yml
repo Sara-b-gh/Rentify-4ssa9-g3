@@ -1,0 +1,6 @@
+# Profil « local » : les appels Feign visent ce même service (faux services de test)
+clients:
+  reservation:
+    url: http://localhost:8083
+  utilisateurs:
+    url: http://localhost:8083
