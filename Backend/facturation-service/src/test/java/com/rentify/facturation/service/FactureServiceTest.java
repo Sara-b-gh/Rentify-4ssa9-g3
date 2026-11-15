@@ -8,6 +8,7 @@ import com.rentify.facturation.dto.PaiementRequest;
 import com.rentify.facturation.exception.FactureIntrouvableException;
 import com.rentify.facturation.exception.OperationInvalideException;
 import com.rentify.facturation.repository.FactureRepository;
+import com.rentify.facturation.repository.PenaliteRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -31,6 +32,9 @@ class FactureServiceTest {
 
     @Mock
     private FactureRepository factureRepository;
+
+    @Mock
+    private PenaliteRepository penaliteRepository;
 
     @InjectMocks
     private FactureService factureService;
@@ -129,5 +133,45 @@ class FactureServiceTest {
         factureService.creerFacture(existante.getContratId(), 300.0);
 
         verify(factureRepository, never()).save(any(Facture.class));
+    }
+
+    @Test
+    void ajouterPenalite_augmenteLeTotalDeLaFacture() {
+        Facture facture = factureDe300();
+        UUID infractionId = UUID.randomUUID();
+        when(factureRepository.findByContratId(facture.getContratId())).thenReturn(Optional.of(facture));
+        when(penaliteRepository.existsByInfractionId(infractionId)).thenReturn(false);
+
+        FactureResponse reponse = factureService.ajouterPenalite(
+                facture.getContratId(), infractionId, "conducteur-1", 50.0);
+
+        assertEquals(350.0, reponse.montantTotal(), 0.001);
+        assertEquals(1, reponse.penalites().size());
+    }
+
+    @Test
+    void ajouterPenalite_memeInfractionDeuxFois_neCreePasDeDoublon() {
+        Facture facture = factureDe300();
+        UUID infractionId = UUID.randomUUID();
+        when(factureRepository.findByContratId(facture.getContratId())).thenReturn(Optional.of(facture));
+        when(penaliteRepository.existsByInfractionId(infractionId)).thenReturn(true);
+
+        FactureResponse reponse = factureService.ajouterPenalite(
+                facture.getContratId(), infractionId, "conducteur-1", 50.0);
+
+        assertEquals(0, reponse.penalites().size());
+        assertEquals(300.0, reponse.montantTotal(), 0.001);
+    }
+
+    @Test
+    void ajouterPenalite_surFactureRemboursee_leveUneErreur409() {
+        Facture facture = factureDe300();
+        facture.setStatut(StatutFacture.REMBOURSEE);
+        UUID infractionId = UUID.randomUUID();
+        when(factureRepository.findByContratId(facture.getContratId())).thenReturn(Optional.of(facture));
+        when(penaliteRepository.existsByInfractionId(infractionId)).thenReturn(false);
+
+        assertThrows(OperationInvalideException.class, () ->
+                factureService.ajouterPenalite(facture.getContratId(), infractionId, "conducteur-1", 50.0));
     }
 }
