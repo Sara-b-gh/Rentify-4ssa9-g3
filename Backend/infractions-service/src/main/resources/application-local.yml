@@ -1,0 +1,7 @@
+# Profil « local » : les appels Feign visent ce même service (faux Flotte et faux Contrats, voir mock/)
+# Lancer avec : -Dspring.profiles.active=h2,local
+rentify:
+  flotte:
+    url: http://localhost:8084
+  contrats:
+    url: http://localhost:8084
