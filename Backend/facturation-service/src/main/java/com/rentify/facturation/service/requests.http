@@ -1,0 +1,48 @@
+### 0. Récupérer la facture de test et mémoriser son id (200)
+GET http://127.0.0.1:8085/api/factures/par-contrat/11111111-1111-1111-1111-111111111111
+
+> {%
+    client.global.set("factureId", response.body.id);
+%}
+
+### 1. Détail de la facture (200)
+GET http://127.0.0.1:8085/api/factures/{{factureId}}
+
+### 2. Paiement partiel de 100 (201, statut PARTIELLEMENT_PAYEE)
+POST http://127.0.0.1:8085/api/factures/{{factureId}}/paiements
+Content-Type: application/json
+
+{ "montant": 100, "mode": "CARTE" }
+
+### 3. Paiement trop grand (409)
+POST http://127.0.0.1:8085/api/factures/{{factureId}}/paiements
+Content-Type: application/json
+
+{ "montant": 5000, "mode": "CARTE" }
+
+### 4. Montant négatif (400)
+POST http://127.0.0.1:8085/api/factures/{{factureId}}/paiements
+Content-Type: application/json
+
+{ "montant": -5, "mode": "CARTE" }
+
+### 5. Paiement du reste (201, statut PAYEE)
+POST http://127.0.0.1:8085/api/factures/{{factureId}}/paiements
+Content-Type: application/json
+
+{ "montant": 200, "mode": "ESPECES" }
+
+### 6. Payer une facture déjà payée (409)
+POST http://127.0.0.1:8085/api/factures/{{factureId}}/paiements
+Content-Type: application/json
+
+{ "montant": 10, "mode": "CARTE" }
+
+### 7. Remboursement (200, statut REMBOURSEE)
+POST http://127.0.0.1:8085/api/factures/{{factureId}}/remboursement
+
+### 8. Deuxième remboursement (409)
+POST http://127.0.0.1:8085/api/factures/{{factureId}}/remboursement
+
+### 9. Facture inconnue (404)
+GET http://127.0.0.1:8085/api/factures/00000000-0000-0000-0000-000000000000
