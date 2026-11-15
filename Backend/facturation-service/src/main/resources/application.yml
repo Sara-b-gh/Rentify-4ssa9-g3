@@ -30,6 +30,11 @@ spring:
     listener:
       simple:
         auto-startup: ${RABBIT_ENABLED:false}   # false tant que RabbitMQ n'est pas lancé
+        default-requeue-rejected: false          # après les essais, on ne reboucle pas à l'infini
+        retry:
+          enabled: true
+          max-attempts: 3
+          initial-interval: 2000ms
 
   cloud:
     openfeign:

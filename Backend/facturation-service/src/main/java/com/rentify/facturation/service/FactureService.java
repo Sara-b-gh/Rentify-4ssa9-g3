@@ -2,12 +2,14 @@ package com.rentify.facturation.service;
 
 import com.rentify.facturation.domain.Facture;
 import com.rentify.facturation.domain.Paiement;
+import com.rentify.facturation.domain.Penalite;
 import com.rentify.facturation.domain.StatutFacture;
 import com.rentify.facturation.dto.FactureResponse;
 import com.rentify.facturation.dto.PaiementRequest;
 import com.rentify.facturation.exception.FactureIntrouvableException;
 import com.rentify.facturation.exception.OperationInvalideException;
 import com.rentify.facturation.repository.FactureRepository;
+import com.rentify.facturation.repository.PenaliteRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,9 +24,11 @@ public class FactureService {
     private static final double TOLERANCE = 0.001;
 
     private final FactureRepository factureRepository;
+    private final PenaliteRepository penaliteRepository;
 
-    public FactureService(FactureRepository factureRepository) {
+    public FactureService(FactureRepository factureRepository, PenaliteRepository penaliteRepository) {
         this.factureRepository = factureRepository;
+        this.penaliteRepository = penaliteRepository;
     }
 
     // GET /api/factures/{id}
@@ -104,6 +108,42 @@ public class FactureService {
         }
 
         facture.setStatut(StatutFacture.REMBOURSEE);
+        return FactureMapper.toResponse(facture);
+    }
+
+    // Appelée à la réception de ConducteurIdentifie
+    @Transactional
+    public FactureResponse ajouterPenalite(UUID contratId, UUID infractionId,
+                                           String conducteurId, double montant) {
+        Facture facture = factureRepository.findByContratId(contratId)
+                .orElseThrow(() -> new FactureIntrouvableException(
+                        "Aucune facture pour le contrat " + contratId));
+
+        // Événement reçu deux fois : on ne crée pas une deuxième pénalité
+        if (penaliteRepository.existsByInfractionId(infractionId)) {
+            return FactureMapper.toResponse(facture);
+        }
+        if (facture.getStatut() == StatutFacture.REMBOURSEE) {
+            throw new OperationInvalideException("La facture a été remboursée");
+        }
+
+        Penalite penalite = new Penalite();
+        penalite.setInfractionId(infractionId);
+        penalite.setConducteurId(conducteurId);
+        penalite.setMontant(montant);
+        facture.ajouterPenalite(penalite);
+
+        // Le total a augmenté : on recalcule le statut
+        double paye = facture.montantPaye();
+        if (paye >= facture.getMontantTotal() - TOLERANCE) {
+            facture.setStatut(StatutFacture.PAYEE);
+        } else if (paye > 0) {
+            facture.setStatut(StatutFacture.PARTIELLEMENT_PAYEE);
+        } else {
+            facture.setStatut(StatutFacture.EMISE);
+        }
+
+        factureRepository.flush();
         return FactureMapper.toResponse(facture);
     }
 
