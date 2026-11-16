@@ -4,6 +4,7 @@ import com.rentify.flotteservice.Entity.PeriodeIndisponible;
 import org.springframework.data.jpa.repository.JpaRepository;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface PeriodeIndisponibleRepository
@@ -13,6 +14,7 @@ public interface PeriodeIndisponibleRepository
             LocalDate dateFin,
             LocalDate dateDebut
     );
+    Optional<PeriodeIndisponible> findByReservationId(UUID reservationId);
 
 
 }

@@ -22,6 +22,7 @@ public class PeriodeIndisponible {
     private LocalDate dateFin;
 
     private String motif;
+    private UUID reservationId;
 
     @ManyToOne
     @JoinColumn(name = "vehicule_id")

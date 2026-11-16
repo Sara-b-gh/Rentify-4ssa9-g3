@@ -16,4 +16,5 @@ public interface IPeriodeIndisponibleService {
     PeriodeIndisponible afficherPeriodeById(UUID id);
 
     void supprimerPeriode(UUID id);
+    void supprimerParReservationId(UUID reservationId);
 }

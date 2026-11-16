@@ -40,4 +40,10 @@ public class IPeriodeIndisponibleServiceImp
     public void supprimerPeriode(UUID id) {
         periodeRepository.deleteById(id);
     }
+
+    @Override
+    public void supprimerParReservationId(UUID reservationId) {
+        periodeRepository.findByReservationId(reservationId)
+                .ifPresent(periodeRepository::delete);
+    }
 }
