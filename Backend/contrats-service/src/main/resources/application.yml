@@ -1,0 +1,40 @@
+server:
+  port: 8083            # à adapter : un port différent par microservice
+
+spring:
+  profiles:
+    active: local       # « local » = faux services Réservation/Utilisateurs (enlever quand les vrais tournent)
+  application:
+    name: contrats-service
+  config:
+    import: "optional:configserver:"   # le service démarre même sans Config Server
+  datasource:
+    url: jdbc:mysql://localhost:3306/contrats_db?createDatabaseIfNotExist=true
+    username: root
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
+
+eureka:
+  client:
+    enabled: false      # mettre true quand Eureka sera lancé
+
+# URLs directes des services appelés (utiles tant qu'Eureka n'est pas actif)
+clients:
+  reservation:
+    url: http://localhost:8082
+  utilisateurs:
+    url: http://localhost:8087
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

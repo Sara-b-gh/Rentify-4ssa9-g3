@@ -1,0 +1,74 @@
+# ===== Configuration du microservice Infractions =====
+server:
+  port: 8084
+
+spring:
+  application:
+    name: infractions-service
+
+  # Config Server : "optional:" permet de démarrer même s'il n'est pas encore lancé
+  config:
+    import: "optional:configserver:http://localhost:8888"
+
+  # Base de données MySQL : une base propre à ce service (infractions_db)
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:infractions_db}?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    username: ${DB_USER:root}
+    password: ${DB_PASSWORD:}
+
+  jpa:
+    hibernate:
+      ddl-auto: update        # crée/met à jour les tables automatiquement (développement)
+    open-in-view: false
+
+  # RabbitMQ : bus d'événements (publication de ConducteurIdentifie)
+  rabbitmq:
+    host: ${RABBIT_HOST:localhost}
+    port: 5672
+    username: ${RABBIT_USER:guest}
+    password: ${RABBIT_PASSWORD:guest}
+
+  cloud:
+    circuitbreaker:
+      resilience4j:
+        disable-time-limiter: true   # le délai est géré par readTimeout (3 s) ci-dessous
+    openfeign:
+      circuitbreaker:
+        enabled: true          # Resilience4j protège les appels Feign
+      client:
+        config:
+          default:
+            connectTimeout: 2000   # ms
+            readTimeout: 3000      # ms
+
+eureka:
+  client:
+    # false tant qu'Eureka n'est pas lancé ; mettre EUREKA_ENABLED=true ensuite
+    enabled: ${EUREKA_ENABLED:false}
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka}
+
+# Adresses directes des services appelés (servent quand Eureka est désactivé)
+rentify:
+  flotte:
+    url: ${FLOTTE_URL:http://localhost:8081}
+  contrats:
+    url: ${CONTRATS_URL:http://localhost:8083}
+  events:
+    exchange: rentify.events
+
+# Circuit breaker : délai max d'un appel Feign avant de passer au fallback (Resilience4j)
+resilience4j:
+  timelimiter:
+    configs:
+      default:
+        timeout-duration: 5s
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  health:
+    rabbit:
+      enabled: ${RABBIT_ENABLED:false}
