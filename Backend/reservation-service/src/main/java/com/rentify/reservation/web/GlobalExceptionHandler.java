@@ -29,8 +29,8 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.BAD_REQUEST, msg);
     }
 
-    @ExceptionHandler(ReservationIntrouvableException.class)
-    public ResponseEntity<ErrorResponse> notFound(ReservationIntrouvableException e) {
+    @ExceptionHandler({ReservationIntrouvableException.class, ClientIntrouvableException.class, VehiculeIntrouvableException.class})
+    public ResponseEntity<ErrorResponse> notFound(RuntimeException e) {
         return build(HttpStatus.NOT_FOUND, e.getMessage());
     }
 

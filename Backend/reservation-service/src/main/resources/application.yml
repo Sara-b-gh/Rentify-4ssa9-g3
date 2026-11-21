@@ -29,7 +29,7 @@ spring:
     password: ${RABBIT_PASSWORD:guest}
     listener:
       simple:
-        auto-startup: ${RABBIT_ENABLED:false}   # false tant que RabbitMQ n'est pas lancé
+        auto-startup: ${RABBIT_ENABLED:false}   # false : pas besoin de RabbitMQ pour tester
 
   cloud:
     openfeign:
@@ -48,11 +48,21 @@ eureka:
     service-url:
       defaultZone: ${EUREKA_URL:http://localhost:8761/eureka}
 
+# Resilience4j : par défaut le TimeLimiter coupe l'appel à 1 seconde (trop court au 1er appel).
+# On le met à 5 s, au-dessus du readTimeout Feign (3 s).
+resilience4j:
+  timelimiter:
+    configs:
+      default:
+        timeoutDuration: 5s
+
 # Adresse directe du service Flotte (sert quand Eureka est désactivé).
 # Laisser vide pour utiliser Eureka (nom "flotte-service").
 rentify:
   flotte:
     url: ${FLOTTE_URL:http://localhost:8081}
+  utilisateurs:
+    url: ${UTILISATEURS_URL:http://localhost:8087}
   events:
     exchange: rentify.events
 

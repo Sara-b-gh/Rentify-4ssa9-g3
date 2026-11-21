@@ -8,9 +8,8 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
 import java.util.List;
-import java.util.UUID;
 
-public interface ReservationRepository extends JpaRepository<Reservation, UUID> {
+public interface ReservationRepository extends JpaRepository<Reservation, Long> {
 
     /**
      * Y a-t-il déjà une réservation confirmée de ce véhicule qui chevauche [debut, fin] ?
@@ -24,14 +23,14 @@ public interface ReservationRepository extends JpaRepository<Reservation, UUID> 
              and r.dateDebut < :fin
              and r.dateFin > :debut
            """)
-    boolean existeChevauchement(@Param("vehiculeId") UUID vehiculeId,
+    boolean existeChevauchement(@Param("vehiculeId") Long vehiculeId,
                                 @Param("statut") StatutReservation statut,
                                 @Param("debut") LocalDate debut,
                                 @Param("fin") LocalDate fin,
-                                @Param("exclu") UUID exclu);
+                                @Param("exclu") Long exclu);
 
     /** Réservations d'un client à venir (pour l'annulation après désactivation du compte). */
-    List<Reservation> findByClientIdAndStatutAndDateDebutAfter(String clientId,
+    List<Reservation> findByClientIdAndStatutAndDateDebutAfter(Long clientId,
                                                                StatutReservation statut,
                                                                LocalDate date);
 }

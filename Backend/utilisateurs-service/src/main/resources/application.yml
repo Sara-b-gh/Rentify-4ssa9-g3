@@ -1,0 +1,41 @@
+# ===== Configuration du microservice Utilisateurs =====
+server:
+  port: 8087
+
+spring:
+  application:
+    name: utilisateurs-service
+
+  # Base MySQL (XAMPP) : une base propre à ce service (utilisateurs_db), créée automatiquement
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:utilisateurs_db}?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    username: ${DB_USER:root}
+    password: ${DB_PASSWORD:}
+
+  jpa:
+    hibernate:
+      ddl-auto: update        # crée / met à jour les tables automatiquement
+    open-in-view: false
+
+  # Validation des tokens JWT : l'émetteur (issuer) est le realm "rentify" de Keycloak
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_URL:http://localhost:8180}/realms/${KEYCLOAK_REALM:rentify}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+# Keycloak : ce service crée/désactive les comptes via l'API d'administration (client "utilisateurs-service")
+keycloak:
+  url: ${KEYCLOAK_URL:http://localhost:8180}
+  realm: ${KEYCLOAK_REALM:rentify}
+  admin-client-id: ${KEYCLOAK_ADMIN_CLIENT_ID:utilisateurs-service}
+  admin-client-secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET:rentify-secret}
+  # Administrateur Keycloak (realm master) utilisé pour créer les comptes
+  admin-username: ${KEYCLOAK_ADMIN:admin}
+  admin-password: ${KEYCLOAK_ADMIN_PASSWORD:admin}

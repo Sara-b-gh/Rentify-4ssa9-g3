@@ -2,6 +2,11 @@ package com.rentify.reservation.service;
 
 import com.rentify.reservation.client.DisponibiliteResponse;
 import com.rentify.reservation.client.FlotteClient;
+import com.rentify.reservation.client.UtilisateurClient;
+import com.rentify.reservation.client.UtilisateurResponse;
+import com.rentify.reservation.exception.ClientIntrouvableException;
+import com.rentify.reservation.exception.FlotteIndisponibleException;
+import feign.FeignException;
 import com.rentify.reservation.domain.Reservation;
 import com.rentify.reservation.domain.StatutReservation;
 import com.rentify.reservation.dto.ModifierDatesRequest;
@@ -15,24 +20,26 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
-import java.util.UUID;
 
 /** Cas d'usage du contexte Réservation. */
 @Service
 public class ReservationService {
 
     /** Identifiant "vide" utilisé quand il n'y a aucune réservation à exclure du contrôle. */
-    private static final UUID AUCUN = new UUID(0L, 0L);
+    private static final Long AUCUN = -1L;   // aucun id exclu
 
     private final com.rentify.reservation.repository.ReservationRepository repository;
     private final FlotteClient flotteClient;
+    private final UtilisateurClient utilisateurClient;
     private final ReservationEventPublisher publisher;
 
     public ReservationService(com.rentify.reservation.repository.ReservationRepository repository,
                               FlotteClient flotteClient,
+                              UtilisateurClient utilisateurClient,
                               ReservationEventPublisher publisher) {
         this.repository = repository;
         this.flotteClient = flotteClient;
+        this.utilisateurClient = utilisateurClient;
         this.publisher = publisher;
     }
 
@@ -40,6 +47,7 @@ public class ReservationService {
     @Transactional
     public Reservation creer(ReservationRequest req) {
         Reservation.verifierDates(req.dateDebut(), req.dateFin());          // 400
+        verifierClient(req.clientId());                                      // 404 / 409 / 503
         double prix = verifierDisponibiliteEtPrix(req.vehiculeId(), req.dateDebut(), req.dateFin(), AUCUN);
 
         Reservation r = new Reservation(req.clientId(), req.vehiculeId(),
@@ -52,7 +60,7 @@ public class ReservationService {
 
     /** GET : lecture (200 / 404). */
     @Transactional(readOnly = true)
-    public Reservation trouver(UUID id) {
+    public Reservation trouver(Long id) {
         return repository.findById(id).orElseThrow(() -> new ReservationIntrouvableException(id));
     }
 
@@ -63,7 +71,7 @@ public class ReservationService {
 
     /** PUT : modifie les dates (200 / 400 / 409). */
     @Transactional
-    public Reservation modifierDates(UUID id, ModifierDatesRequest req) {
+    public Reservation modifierDates(Long id, ModifierDatesRequest req) {
         Reservation r = trouver(id);
         Reservation.verifierDates(req.dateDebut(), req.dateFin());
         double prix = verifierDisponibiliteEtPrix(r.getVehiculeId(), req.dateDebut(), req.dateFin(), r.getId());
@@ -75,7 +83,7 @@ public class ReservationService {
 
     /** DELETE : annule (204 / 404 / 409). */
     @Transactional
-    public void annuler(UUID id) {
+    public void annuler(Long id) {
         Reservation r = trouver(id);
         r.annuler();
         publisher.reservationAnnulee(repository.save(r));
@@ -83,7 +91,7 @@ public class ReservationService {
 
     /** Réaction à UtilisateurDesactive : annule toutes les réservations futures du client. */
     @Transactional
-    public void annulerReservationsFutures(String clientId) {
+    public void annulerReservationsFutures(Long clientId) {
         List<Reservation> futures = repository.findByClientIdAndStatutAndDateDebutAfter(
                 clientId, StatutReservation.CONFIRMEE, LocalDate.now());
         for (Reservation r : futures) {
@@ -100,7 +108,7 @@ public class ReservationService {
      * 3) véhicule indisponible selon Flotte => 409
      * Retourne le prix journalier.
      */
-    private double verifierDisponibiliteEtPrix(UUID vehiculeId, LocalDate debut, LocalDate fin, UUID exclu) {
+    private double verifierDisponibiliteEtPrix(Long vehiculeId, LocalDate debut, LocalDate fin, Long exclu) {
         if (repository.existeChevauchement(vehiculeId, StatutReservation.CONFIRMEE, debut, fin, exclu)) {
             throw new ConflitReservationException("Le véhicule est déjà réservé sur cette période");
         }
@@ -114,5 +122,20 @@ public class ReservationService {
     /** Montant estimé = nombre de jours x prix journalier. */
     private double calculerMontant(double prixJournalier, LocalDate debut, LocalDate fin) {
         return ChronoUnit.DAYS.between(debut, fin) * prixJournalier;
+    }
+
+    /** Appel RÉEL au service Utilisateurs : le client doit exister et être actif. */
+    private void verifierClient(Long clientId) {
+        UtilisateurResponse u;
+        try {
+            u = utilisateurClient.trouver(clientId);
+        } catch (FeignException.NotFound e) {
+            throw new ClientIntrouvableException(clientId);                  // 404
+        } catch (FeignException e) {
+            throw new FlotteIndisponibleException("Service Utilisateurs indisponible, réessayer plus tard");   // 503
+        }
+        if (!Boolean.TRUE.equals(u.actif())) {
+            throw new ConflitReservationException("Le compte du client " + clientId + " est désactivé");        // 409
+        }
     }
 }

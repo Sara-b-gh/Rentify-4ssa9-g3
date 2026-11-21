@@ -1,0 +1,10 @@
+# Profil "h2" : démarrer sans MySQL (tests rapides)
+# Lancer avec : SPRING_PROFILES_ACTIVE=h2
+spring:
+  datasource:
+    url: jdbc:h2:mem:utilisateurs_db;MODE=MySQL;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop

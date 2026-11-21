@@ -3,11 +3,10 @@ package com.rentify.reservation.dto;
 import com.rentify.reservation.domain.Reservation;
 
 import java.time.LocalDate;
-import java.util.UUID;
 
 /** Représentation renvoyée par l'API (on n'expose jamais l'entité directement). */
 public record ReservationResponse(
-        UUID id, String clientId, UUID vehiculeId,
+        Long id, Long clientId, Long vehiculeId,
         LocalDate dateDebut, LocalDate dateFin,
         double montantEstime, String statut) {
 

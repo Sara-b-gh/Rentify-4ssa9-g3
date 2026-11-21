@@ -2,6 +2,8 @@ package com.rentify.reservation.service;
 
 import com.rentify.reservation.client.DisponibiliteResponse;
 import com.rentify.reservation.client.FlotteClient;
+import com.rentify.reservation.client.UtilisateurClient;
+import com.rentify.reservation.client.UtilisateurResponse;
 import com.rentify.reservation.domain.Reservation;
 import com.rentify.reservation.domain.StatutReservation;
 import com.rentify.reservation.dto.ReservationRequest;
@@ -10,6 +12,7 @@ import com.rentify.reservation.exception.ConflitReservationException;
 import com.rentify.reservation.exception.FlotteIndisponibleException;
 import com.rentify.reservation.exception.ReservationInvalideException;
 import com.rentify.reservation.repository.ReservationRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -17,7 +20,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
-import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -29,15 +31,30 @@ class ReservationServiceTest {
 
     @Mock ReservationRepository repository;
     @Mock FlotteClient flotteClient;
+    @Mock UtilisateurClient utilisateurClient;
     @Mock ReservationEventPublisher publisher;
     @InjectMocks ReservationService service;
 
-    private final UUID vehicule = UUID.randomUUID();
+    private final Long vehicule = 1L;
     private final LocalDate debut = LocalDate.now().plusDays(5);
     private final LocalDate fin = LocalDate.now().plusDays(8);
 
+    /** Par défaut, le service Utilisateurs (mock) répond : client 1 actif. */
+    @BeforeEach
+    void clientActif() {
+        lenient().when(utilisateurClient.trouver(1L)).thenReturn(new UtilisateurResponse(1L, "CLIENT", true));
+    }
+
+    @Test
+    void creer_clientDesactive_leve409SansAppelFlotte() {
+        when(utilisateurClient.trouver(1L)).thenReturn(new UtilisateurResponse(1L, "CLIENT", false));
+        assertThrows(ConflitReservationException.class, () -> service.creer(requete()));
+        verifyNoInteractions(flotteClient);
+        verify(repository, never()).save(any());
+    }
+
     private ReservationRequest requete() {
-        return new ReservationRequest("client-1", vehicule, debut, fin);
+        return new ReservationRequest(1L, vehicule, debut, fin);
     }
 
     @Test
@@ -55,7 +72,7 @@ class ReservationServiceTest {
 
     @Test
     void creer_datesInvalides_leve400() {
-        ReservationRequest invalide = new ReservationRequest("c", vehicule, fin, debut);
+        ReservationRequest invalide = new ReservationRequest(1L, vehicule, fin, debut);
         assertThrows(ReservationInvalideException.class, () -> service.creer(invalide));
         verifyNoInteractions(flotteClient);
     }
@@ -83,9 +100,9 @@ class ReservationServiceTest {
 
     @Test
     void annuler_deuxFois_leve409() {
-        Reservation r = new Reservation("c", vehicule, debut, fin, 100);
+        Reservation r = new Reservation(1L, vehicule, debut, fin, 100);
         r.confirmer();
-        UUID id = UUID.randomUUID();
+        Long id = 1L;
         when(repository.findById(id)).thenReturn(java.util.Optional.of(r));
         when(repository.save(any(Reservation.class))).thenAnswer(i -> i.getArgument(0));
 

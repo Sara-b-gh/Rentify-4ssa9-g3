@@ -5,7 +5,6 @@ import com.rentify.reservation.exception.ReservationInvalideException;
 import jakarta.persistence.*;
 
 import java.time.LocalDate;
-import java.util.UUID;
 
 /**
  * Entité racine de l'agrégat Réservation (DDD).
@@ -17,14 +16,14 @@ import java.util.UUID;
 public class Reservation {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private UUID id;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
     @Column(nullable = false)
-    private String clientId;      // identifiant Keycloak/Utilisateurs
+    private Long clientId;      // identifiant Keycloak/Utilisateurs
 
     @Column(nullable = false)
-    private UUID vehiculeId;      // identifiant du véhicule dans Flotte
+    private Long vehiculeId;      // identifiant du véhicule dans Flotte
 
     @Column(nullable = false)
     private LocalDate dateDebut;
@@ -41,7 +40,7 @@ public class Reservation {
 
     protected Reservation() { }   // requis par JPA
 
-    public Reservation(String clientId, UUID vehiculeId, LocalDate dateDebut,
+    public Reservation(Long clientId, Long vehiculeId, LocalDate dateDebut,
                        LocalDate dateFin, double montantEstime) {
         verifierDates(dateDebut, dateFin);
         this.clientId = clientId;
@@ -88,9 +87,9 @@ public class Reservation {
         this.statut = StatutReservation.ANNULEE;
     }
 
-    public UUID getId() { return id; }
-    public String getClientId() { return clientId; }
-    public UUID getVehiculeId() { return vehiculeId; }
+    public Long getId() { return id; }
+    public Long getClientId() { return clientId; }
+    public Long getVehiculeId() { return vehiculeId; }
     public LocalDate getDateDebut() { return dateDebut; }
     public LocalDate getDateFin() { return dateFin; }
     public double getMontantEstime() { return montantEstime; }

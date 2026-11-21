@@ -12,7 +12,6 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.net.URI;
 import java.util.List;
-import java.util.UUID;
 
 /** API REST du service Réservation. */
 @RestController
@@ -36,7 +35,7 @@ public class ReservationController {
 
     /** 200 trouvée, 404 introuvable. */
     @GetMapping("/{id}")
-    public ReservationResponse trouver(@PathVariable UUID id) {
+    public ReservationResponse trouver(@PathVariable Long id) {
         return ReservationResponse.from(service.trouver(id));
     }
 
@@ -48,14 +47,14 @@ public class ReservationController {
 
     /** 200 modifiée, 400 dates invalides, 409 conflit. */
     @PutMapping("/{id}")
-    public ReservationResponse modifier(@PathVariable UUID id, @Valid @RequestBody ModifierDatesRequest req) {
+    public ReservationResponse modifier(@PathVariable Long id, @Valid @RequestBody ModifierDatesRequest req) {
         return ReservationResponse.from(service.modifierDates(id, req));
     }
 
     /** 204 annulée, 404 introuvable, 409 déjà annulée/terminée. */
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void annuler(@PathVariable UUID id) {
+    public void annuler(@PathVariable Long id) {
         service.annuler(id);
     }
 }
