@@ -1,42 +1,42 @@
 package com.rentify.facturation.domain;
 
 import jakarta.persistence.*;
-import java.time.LocalDateTime;
-import java.util.UUID;
+import java.time.*;
 
+/** Paiement partiel ou total d'une facture. */
 @Entity
 @Table(name = "paiements")
 public class Paiement {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private UUID id;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
     @Column(nullable = false)
-    private double montant;
+    private Long factureId;
 
     @Column(nullable = false)
-    private String mode;
+    private Double montant;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private LocalDateTime datePaiement;
+    private ModePaiement mode;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "facture_id")
-    private Facture facture;
+    @Column
+    private LocalDate datePaiement = LocalDate.now();
 
-    public UUID getId() { return id; }
-    public void setId(UUID id) { this.id = id; }
+    public Paiement() {
+    }
 
-    public double getMontant() { return montant; }
-    public void setMontant(double montant) { this.montant = montant; }
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
 
-    public String getMode() { return mode; }
-    public void setMode(String mode) { this.mode = mode; }
-
-    public LocalDateTime getDatePaiement() { return datePaiement; }
-    public void setDatePaiement(LocalDateTime datePaiement) { this.datePaiement = datePaiement; }
-
-    public Facture getFacture() { return facture; }
-    public void setFacture(Facture facture) { this.facture = facture; }
+    public Long getFactureId() { return factureId; }
+    public void setFactureId(Long factureId) { this.factureId = factureId; }
+    public Double getMontant() { return montant; }
+    public void setMontant(Double montant) { this.montant = montant; }
+    public ModePaiement getMode() { return mode; }
+    public void setMode(ModePaiement mode) { this.mode = mode; }
+    public LocalDate getDatePaiement() { return datePaiement; }
+    public void setDatePaiement(LocalDate datePaiement) { this.datePaiement = datePaiement; }
 }

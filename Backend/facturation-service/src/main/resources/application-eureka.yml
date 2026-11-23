@@ -1,0 +1,15 @@
+# Profil "eureka" : lancer le service avec  spring.profiles.active=eureka
+# - le service s'enregistre dans Eureka (http://localhost:8761) ;
+# - les appels vers les autres services se font par NOM LOGIQUE (via Eureka + LoadBalancer),
+#   plus par adresse fixe : on vide donc les URL directes.
+eureka:
+  client:
+    enabled: true
+
+rentify:
+  contrats:
+    url: ""
+  infractions:
+    url: ""
+  reservation:
+    url: ""

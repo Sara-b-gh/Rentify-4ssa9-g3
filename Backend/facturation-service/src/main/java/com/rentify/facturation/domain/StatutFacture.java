@@ -1,8 +1,6 @@
 package com.rentify.facturation.domain;
 
+/** État d'une facture. */
 public enum StatutFacture {
-    EMISE,
-    PARTIELLEMENT_PAYEE,
-    PAYEE,
-    REMBOURSEE
+    EMISE, PAYEE
 }

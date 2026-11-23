@@ -1,154 +1,84 @@
 package com.rentify.facturation.service;
 
-import com.rentify.facturation.domain.Facture;
-import com.rentify.facturation.domain.Paiement;
-import com.rentify.facturation.domain.Penalite;
-import com.rentify.facturation.domain.StatutFacture;
-import com.rentify.facturation.dto.FactureResponse;
-import com.rentify.facturation.dto.PaiementRequest;
-import com.rentify.facturation.exception.FactureIntrouvableException;
-import com.rentify.facturation.exception.OperationInvalideException;
-import com.rentify.facturation.repository.FactureRepository;
-import com.rentify.facturation.repository.PenaliteRepository;
+import com.rentify.facturation.domain.*;
+import com.rentify.facturation.dto.*;
+import com.rentify.facturation.exception.*;
+import com.rentify.facturation.repository.*;
+import com.rentify.facturation.client.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.util.UUID;
+import java.time.*;
+import java.util.*;
 
+/** Logique métier : Facture d'un contrat de location (montantTotal = location + pénalités). */
 @Service
 public class FactureService {
 
-    // Les montants sont des double : on compare avec une petite tolérance
-    private static final double TOLERANCE = 0.001;
+    private final FactureRepository repository;
+    private final PaiementRepository paiementRepository;
+    private final ContratClient contratClient;
+    private final ReservationClient reservationClient;
 
-    private final FactureRepository factureRepository;
-    private final PenaliteRepository penaliteRepository;
-
-    public FactureService(FactureRepository factureRepository, PenaliteRepository penaliteRepository) {
-        this.factureRepository = factureRepository;
-        this.penaliteRepository = penaliteRepository;
+    public FactureService(FactureRepository repository, PaiementRepository paiementRepository, ContratClient contratClient, ReservationClient reservationClient) {
+        this.repository = repository;
+        this.paiementRepository = paiementRepository;
+        this.contratClient = contratClient;
+        this.reservationClient = reservationClient;
     }
 
-    // GET /api/factures/{id}
     @Transactional(readOnly = true)
-    public FactureResponse consulter(UUID id) {
-        return FactureMapper.toResponse(trouver(id));
+    public List<Facture> lister() {
+        return repository.findAll();
     }
 
-    // GET /api/factures/par-contrat/{contratId}
     @Transactional(readOnly = true)
-    public FactureResponse consulterParContrat(UUID contratId) {
-        Facture facture = factureRepository.findByContratId(contratId)
-                .orElseThrow(() -> new FactureIntrouvableException(
-                        "Aucune facture pour le contrat " + contratId));
-        return FactureMapper.toResponse(facture);
+    public Facture trouver(Long id) {
+        return repository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Facture introuvable : " + id));
     }
 
-    // Appelée à la réception de l'événement ContratCloture
+
     @Transactional
-    public FactureResponse creerFacture(UUID contratId, double montantLocation) {
-        // Si l'événement arrive deux fois, on ne crée pas une deuxième facture
-        return factureRepository.findByContratId(contratId)
-                .map(FactureMapper::toResponse)
-                .orElseGet(() -> {
-                    Facture facture = new Facture();
-                    facture.setContratId(contratId);
-                    facture.setMontantLocation(montantLocation);
-                    facture.setMontantTotal(montantLocation);
-                    facture.setDateEmission(LocalDate.now());
-                    facture.setStatut(StatutFacture.EMISE);
-                    return FactureMapper.toResponse(factureRepository.save(facture));
-                });
+    public Facture creer(FactureRequest req) {
+        verifier(req, null);
+        Facture e = new Facture();
+        appliquer(e, req);
+        // Appels RÉELS : le contrat (Contrats) doit être clôturé ; le montant vient de la réservation (Réservation)
+        ContratDto c = AppelDistant.appeler("contrats-service", "Contrat",
+                () -> contratClient.trouver(req.contratId()));
+        if (!"CLOTURE".equals(c.statut())) {
+            throw new ConflictException("Le contrat doit être clôturé avant la facturation (statut : " + c.statut() + ")");
+        }
+        ReservationDto r = AppelDistant.appeler("reservation-service", "Réservation",
+                () -> reservationClient.trouver(c.reservationId()));
+        e.setClientId(c.clientId());
+        e.setMontantTotal(r.montantEstime());
+        Facture saved = repository.save(e);
+        return saved;
     }
 
-    // POST /api/factures/{id}/paiements
     @Transactional
-    public FactureResponse enregistrerPaiement(UUID factureId, PaiementRequest request) {
-        Facture facture = trouver(factureId);
-
-        if (facture.getStatut() == StatutFacture.PAYEE) {
-            throw new OperationInvalideException("La facture est déjà payée");
-        }
-        if (facture.getStatut() == StatutFacture.REMBOURSEE) {
-            throw new OperationInvalideException("La facture a été remboursée");
-        }
-
-        double resteAPayer = facture.getMontantTotal() - facture.montantPaye();
-        if (request.montant() > resteAPayer + TOLERANCE) {
-            throw new OperationInvalideException(
-                    "Le montant dépasse le reste à payer (" + resteAPayer + ")");
-        }
-
-        Paiement paiement = new Paiement();
-        paiement.setMontant(request.montant());
-        paiement.setMode(request.mode());
-        paiement.setDatePaiement(LocalDateTime.now());
-        facture.ajouterPaiement(paiement);
-
-        boolean totalementPayee = facture.montantPaye() >= facture.getMontantTotal() - TOLERANCE;
-        facture.setStatut(totalementPayee ? StatutFacture.PAYEE : StatutFacture.PARTIELLEMENT_PAYEE);
-
-        // flush : écrit en base pour que le paiement ait son id avant la réponse
-        factureRepository.flush();
-        return FactureMapper.toResponse(facture);
+    public void supprimer(Long id) {
+        repository.delete(trouver(id));
     }
 
-    // POST /api/factures/{id}/remboursement
-    @Transactional
-    public FactureResponse rembourser(UUID factureId) {
-        Facture facture = trouver(factureId);
-
-        if (facture.getStatut() == StatutFacture.REMBOURSEE) {
-            throw new OperationInvalideException("La facture est déjà remboursée");
-        }
-        if (facture.getPaiements().isEmpty()) {
-            throw new OperationInvalideException("Aucun paiement à rembourser");
-        }
-
-        facture.setStatut(StatutFacture.REMBOURSEE);
-        return FactureMapper.toResponse(facture);
+    private void appliquer(Facture e, FactureRequest req) {
+        e.setContratId(req.contratId());
     }
 
-    // Appelée à la réception de ConducteurIdentifie
-    @Transactional
-    public FactureResponse ajouterPenalite(UUID contratId, UUID infractionId,
-                                           String conducteurId, double montant) {
-        Facture facture = factureRepository.findByContratId(contratId)
-                .orElseThrow(() -> new FactureIntrouvableException(
-                        "Aucune facture pour le contrat " + contratId));
-
-        // Événement reçu deux fois : on ne crée pas une deuxième pénalité
-        if (penaliteRepository.existsByInfractionId(infractionId)) {
-            return FactureMapper.toResponse(facture);
+    /** Règles métier (400 / 404 / 409). "courant" vaut null à la création. */
+    private void verifier(FactureRequest req, Facture courant) {
+        if (repository.existsByContratId(req.contratId())) {
+            throw new ConflictException("Une facture existe déjà pour le contrat " + req.contratId());
         }
-        if (facture.getStatut() == StatutFacture.REMBOURSEE) {
-            throw new OperationInvalideException("La facture a été remboursée");
-        }
-
-        Penalite penalite = new Penalite();
-        penalite.setInfractionId(infractionId);
-        penalite.setConducteurId(conducteurId);
-        penalite.setMontant(montant);
-        facture.ajouterPenalite(penalite);
-
-        // Le total a augmenté : on recalcule le statut
-        double paye = facture.montantPaye();
-        if (paye >= facture.getMontantTotal() - TOLERANCE) {
-            facture.setStatut(StatutFacture.PAYEE);
-        } else if (paye > 0) {
-            facture.setStatut(StatutFacture.PARTIELLEMENT_PAYEE);
-        } else {
-            facture.setStatut(StatutFacture.EMISE);
-        }
-
-        factureRepository.flush();
-        return FactureMapper.toResponse(facture);
     }
 
-    private Facture trouver(UUID id) {
-        return factureRepository.findById(id)
-                .orElseThrow(() -> new FactureIntrouvableException("Facture introuvable : " + id));
+    /** Total payé, reste à payer. */
+    @Transactional(readOnly = true)
+    public ResteAPayerResponse reste(Long id) {
+        Facture f = trouver(id);
+        double paye = paiementRepository.totalPaye(id);
+        return new ResteAPayerResponse(id, f.getMontantTotal(), paye, f.getMontantTotal() - paye);
     }
 }

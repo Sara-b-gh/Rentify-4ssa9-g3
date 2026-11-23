@@ -1,48 +1,57 @@
 package com.rentify.facturation.web;
 
-import com.rentify.facturation.dto.FactureResponse;
-import com.rentify.facturation.dto.PaiementRequest;
+import com.rentify.facturation.domain.*;
+import com.rentify.facturation.dto.*;
 import com.rentify.facturation.service.FactureService;
 import jakarta.validation.Valid;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.UUID;
+import java.time.*;
+import java.util.*;
 
+/** API REST : Facture d'un contrat de location (montantTotal = location + pénalités). */
 @RestController
 @RequestMapping("/api/factures")
 public class FactureController {
 
-    private final FactureService factureService;
+    private final FactureService service;
 
-    public FactureController(FactureService factureService) {
-        this.factureService = factureService;
+    public FactureController(FactureService service) {
+        this.service = service;
     }
 
-    // 200, 404
+    /** 200 : liste complète. */
+    @GetMapping
+    public List<Facture> lister() {
+        return service.lister();
+    }
+
+    /** 200 trouvé, 404 introuvable. */
     @GetMapping("/{id}")
-    public FactureResponse detail(@PathVariable UUID id) {
-        return factureService.consulter(id);
+    public Facture trouver(@PathVariable Long id) {
+        return service.trouver(id);
     }
 
-    // 200, 404
-    @GetMapping("/par-contrat/{contratId}")
-    public FactureResponse parContrat(@PathVariable UUID contratId) {
-        return factureService.consulterParContrat(contratId);
+
+    /** 201 créé, 400 données invalides, 404 référence introuvable, 409 conflit, 503 service distant indisponible. */
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    public Facture creer(@Valid @RequestBody FactureRequest req) {
+        return service.creer(req);
     }
 
-    // 201, 400, 404, 409
-    @PostMapping("/{id}/paiements")
-    public ResponseEntity<FactureResponse> payer(@PathVariable UUID id,
-                                                 @Valid @RequestBody PaiementRequest request) {
-        FactureResponse reponse = factureService.enregistrerPaiement(id, request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(reponse);
+    /** 204 supprimé, 404 introuvable. */
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void supprimer(@PathVariable Long id) {
+        service.supprimer(id);
     }
 
-    // 200, 404, 409
-    @PostMapping("/{id}/remboursement")
-    public FactureResponse rembourser(@PathVariable UUID id) {
-        return factureService.rembourser(id);
+    /** Montant total, déjà payé et reste à payer. */
+    @GetMapping("/{id}/reste")
+    public ResteAPayerResponse reste(@PathVariable Long id) {
+        return service.reste(id);
     }
 }

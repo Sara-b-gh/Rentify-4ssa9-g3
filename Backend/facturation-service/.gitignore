@@ -1,22 +1,4 @@
-# Maven
 target/
-
-# IntelliJ
 .idea/
 *.iml
-*.iws
-out/
-
-# Eclipse / VS Code
-.classpath
-.project
-.settings/
-.vscode/
-
-# Logs and OS files
-*.log
-.DS_Store
-Thumbs.db
-
-# Secrets
-application-local.yml
+.mvn/wrapper/*.jar

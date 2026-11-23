@@ -1,12 +1,13 @@
 package com.rentify.facturation.repository;
 
-import com.rentify.facturation.domain.Penalite;
+import com.rentify.facturation.domain.*;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
-import java.util.UUID;
+import java.time.*;
+import java.util.*;
 
-public interface PenaliteRepository extends JpaRepository<Penalite, UUID> {
-
-    // Évite de créer deux fois la même pénalité si l'événement arrive en double
-    boolean existsByInfractionId(UUID infractionId);
+public interface PenaliteRepository extends JpaRepository<Penalite, Long> {
+    boolean existsByInfractionId(Long infractionId);
 }

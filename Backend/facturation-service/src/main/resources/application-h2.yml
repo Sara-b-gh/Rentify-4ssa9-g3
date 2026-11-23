@@ -1,20 +1,10 @@
-# Profil "h2" : démarrer le service sans MySQL ni RabbitMQ (tests rapides)
-# Lancer avec le profil actif : h2
+# Profil "h2" : démarrer sans MySQL (tests rapides)
+# Lancer avec : SPRING_PROFILES_ACTIVE=h2
 spring:
   datasource:
     url: jdbc:h2:mem:facturation_db;MODE=MySQL;DB_CLOSE_DELAY=-1
     username: sa
     password:
-  rabbitmq:
-    listener:
-      simple:
-        auto-startup: false
   jpa:
     hibernate:
       ddl-auto: create-drop
-    show-sql: true
-# Sans RabbitMQ lancé, on évite que /actuator/health passe à DOWN
-management:
-  health:
-    rabbit:
-      enabled: false

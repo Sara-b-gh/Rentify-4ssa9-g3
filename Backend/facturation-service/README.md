@@ -1,74 +1,93 @@
-# facturation-service
+# facturation-service — Microservice Facturation (Rentify)
 
-Microservice **Facturation** de la plateforme Rentify (Membre 5).
+Contexte DDD : Facturation (factures, paiements, pénalités liées aux infractions)
 
-## Responsabilités
-- Émettre une facture à la clôture d'un contrat
-- Enregistrer les paiements d'une facture (paiement partiel ou total)
-- Rembourser une facture payée
-- Ajouter une pénalité à la facture quand un conducteur est identifié pour une infraction
+- Port : **8085**
+- Base MySQL : **facturation_db** (créée automatiquement)
+- Identifiants : tous de type `Long` (auto-incrément)
+- Références vers les autres services : **par identifiant uniquement** (aucune classe partagée)
+- Swagger UI : http://localhost:8085/swagger-ui.html
+- Santé : http://localhost:8085/actuator/health
 
-## Contexte borné
-Facturation ne connaît que des identifiants des autres services (`contratId`, `vehiculeId`, `infractionId`, `conducteurId`), jamais leurs entités. Elle garde ses propres données et reste autonome.
+## Lancer
 
-## Technologies
-- Java 17, Spring Boot 3.3.5
-- Spring Data JPA, base MySQL (profil `h2` pour démarrer sans MySQL)
-- RabbitMQ (événements asynchrones)
-- OpenFeign + Resilience4j (appel vers Flotte)
-- Eureka Client, Spring Cloud Config
+1. Démarrer **MySQL** dans XAMPP.
+2. Ouvrir le projet dans IntelliJ (JDK 21), recharger Maven.
+3. Lancer `FacturationServiceApplication`.
+   - Sans MySQL : variable d'environnement `SPRING_PROFILES_ACTIVE=h2`.
+4. Ouvrir Swagger.
 
-## Base de données
-Une base **par service** : `facturation_db` (MySQL).
-- Une base relationnelle convient à des données financières qui exigent des transactions et de la cohérence : facture, paiements et pénalités sont liés.
-- Une base propre au service évite le couplage avec les autres services : aucun accès direct aux tables des autres.
-- Le profil `h2` (base en mémoire) permet de démarrer sans MySQL pour les tests.
+## Services appelés (à lancer avant de tester)
 
-## Modèle de données
-- **Facture** : id, contratId, montantLocation, montantTotal, dateEmission, statut. La méthode `calculerTotal()` renvoie montantLocation + somme des pénalités.
-    - Statuts : `EMISE`, `PARTIELLEMENT_PAYEE`, `PAYEE`, `REMBOURSEE`
-- **Paiement** : id, montant, mode, datePaiement (une facture a plusieurs paiements)
-- **Pénalité** : id, infractionId, conducteurId, montant (une facture a plusieurs pénalités)
+- **contrats-service** (port 8083)
+- **reservation-service** (port 8082)
+- **infractions-service** (port 8084)
 
-## API REST (port 8085)
+Si l'un d'eux est arrêté, ce service répond **503**.
 
-| Méthode | Endpoint | Description | Codes |
+## Endpoints
+
+| Méthode | URL | Rôle | Codes |
 |---|---|---|---|
-| GET | `/api/factures/{id}` | Détail d'une facture | 200, 404 |
-| GET | `/api/factures/par-contrat/{contratId}` | Facture d'un contrat | 200, 404 |
-| POST | `/api/factures/{id}/paiements` | Enregistrer un paiement | 201, 400, 404, 409 |
-| POST | `/api/factures/{id}/remboursement` | Rembourser | 200, 404, 409 |
+| GET | `/api/factures` | Liste des factures | 200 |
+| GET | `/api/factures/{id}` | Détail | 200 / 404 |
+| POST | `/api/factures` | Création | 201 / 400 / 404 / 409 / 503 |
+| DELETE | `/api/factures/{id}` | Suppression | 204 / 404 |
+| GET | `/api/factures/{id}/reste` | Total payé et reste à payer | 200 / 404 |
+| GET | `/api/paiements` | Liste des paiements | 200 |
+| GET | `/api/paiements/{id}` | Détail | 200 / 404 |
+| POST | `/api/paiements` | Création | 201 / 400 / 404 / 409 / 503 |
+| GET | `/api/paiements/par-facture/{factureId}` | Paiements d'une facture | 200 |
+| GET | `/api/penalites` | Liste des pénalités | 200 |
+| GET | `/api/penalites/{id}` | Détail | 200 / 404 |
+| POST | `/api/penalites` | Création | 201 / 400 / 404 / 409 / 503 |
 
-- **400** : montant négatif ou mode de paiement manquant
-- **404** : facture inconnue
-- **409** : facture déjà payée ou remboursée, montant supérieur au reste à payer, remboursement sans paiement
+## Exemples de corps JSON
 
-## Interactions
+**POST /api/factures**
+```json
+{
+  "contratId": 1
+}
+```
 
-| Sens | Service | Mode | Données | Justification |
-|---|---|---|---|---|
-| Consomme | Contrats | Asynchrone (RabbitMQ) | `ContratCloture` | Facturation n'a pas à bloquer le service Contrats |
-| Consomme | Infractions | Asynchrone (RabbitMQ) | `ConducteurIdentifie` | Même raison : les services restent découplés |
-| Appelle | Flotte | Synchrone (Feign) | tarif du véhicule | Le tarif est nécessaire tout de suite pour calculer la facture |
+**POST /api/paiements**
+```json
+{
+  "factureId": 1,
+  "montant": 100.0,
+  "mode": "CARTE"
+}
+```
 
-Facturation ne publie aucun événement.
+**POST /api/penalites**
+```json
+{
+  "factureId": 1,
+  "infractionId": 1
+}
+```
 
-### Contrats d'échange
-- Exchange RabbitMQ : `rentify.events`
-- `contrat.cloture` : `contratId`, `vehiculeId`, `dateDebut`, `dateFin`
-- `infraction.conducteur-identifie` : `infractionId`, `contratId`, `conducteurId`, `montant`
-- Flotte (tarif) : appel `GET /api/vehicules/{id}/tarif` qui renvoie `tarifJournalier`. **À valider avec le membre Flotte** (le chemin et le champ peuvent évoluer).
+## Scénario de test (Swagger)
 
-## Cas de panne
-- **Flotte indisponible** : le circuit breaker déclenche un fallback qui lève `TarifIndisponibleException`. Aucune facture incorrecte n'est créée. Le message RabbitMQ est rejoué (3 essais), donc il n'est pas perdu. Les lectures (`GET`) et les paiements continuent de fonctionner, car ils n'appellent pas Flotte.
-- **RabbitMQ arrêté** : les événements restent dans la file et sont traités au retour du broker.
-- **Événement reçu deux fois** : aucun doublon (une seule facture par contrat, une seule pénalité par infraction).
+1. Prérequis : **Contrats** (8083) avec un contrat **clôturé** (id 1), **Réservation** (8082) et **Infractions** (8084) lancés, avec une infraction identifiée sur ce contrat.
+2. POST `/api/factures` avec `{"contratId": 1}` → 201 ; `clientId` et `montantTotal` viennent des autres services (statut EMISE).
+3. POST `/api/factures` avec le même contrat → 409 ; avec un contrat non clôturé → 409 ; avec un contrat inconnu → 404.
+4. POST `/api/penalites` avec `{"factureId": 1, "infractionId": 1}` → 201 ; le montant vient de l'infraction et s'ajoute au total de la facture.
+5. POST `/api/penalites` avec une infraction non identifiée → 409 ; la même infraction → 409.
+6. POST `/api/paiements` (factureId 1, montant 100, CARTE) → 201 ; GET `/api/factures/1/reste` → reste à payer.
+7. POST `/api/paiements` avec un montant trop grand → 409 ; avec le montant exact du reste → 201 et facture PAYEE.
+8. Arrêter **Contrats** puis POST `/api/factures` → 503.
 
-## Lancer le service
-1. Avec MySQL : lancer MySQL (la base `facturation_db` est créée automatiquement), puis `FacturationServiceApplication`.
-2. Sans MySQL : profil `h2` (`-Dspring.profiles.active=h2`). Une facture de test est alors créée pour le contrat `11111111-1111-1111-1111-111111111111`.
-3. Le fichier `requests.http` contient les requêtes de test des 4 endpoints.
+## Tests unitaires
 
-## Tests
-- `FactureServiceTest` : règles métier (paiement partiel ou total, erreurs 404 et 409, remboursement, pénalités, doublons)
-- `FactureEventListenerTest` : calcul du montant avec le tarif de Flotte et cas de panne de Flotte
+`mvn test` (ou IntelliJ : clic droit sur `src/test` puis Run).
+
+## Pousser sur Git
+
+```
+git pull
+git add Backend/facturation-service
+git commit -m "feat(facturation): microservice Facturation"
+git push
+```

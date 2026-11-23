@@ -1,10 +1,12 @@
 package com.rentify.facturation.dto;
 
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Positive;
+import com.rentify.facturation.domain.*;
+import jakarta.validation.constraints.*;
+import java.time.*;
 
+/** Données reçues pour créer / modifier : Paiement partiel ou total d'une facture. */
 public record PaiementRequest(
-        @Positive(message = "Le montant doit être positif") double montant,
-        @NotBlank(message = "Le mode de paiement est obligatoire") String mode
-) {
+        @NotNull Long factureId,
+        @NotNull @Positive Double montant,
+        @NotNull ModePaiement mode) {
 }

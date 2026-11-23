@@ -6,11 +6,7 @@ spring:
   application:
     name: facturation-service
 
-  # Config Server : "optional:" permet de démarrer même s'il n'est pas encore lancé
-  config:
-    import: "optional:configserver:http://localhost:8888"
-
-  # Base de données MySQL : une base propre à ce service (facturation_db)
+  # Base MySQL (XAMPP) : une base propre à ce service (facturation_db), créée automatiquement
   datasource:
     url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:facturation_db}?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
     username: ${DB_USER:root}
@@ -18,53 +14,50 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update        # crée/met à jour les tables automatiquement (développement)
+      ddl-auto: update        # crée / met à jour les tables automatiquement
     open-in-view: false
-
-  # RabbitMQ : bus d'événements (consomme ContratCloture et ConducteurIdentifie)
-  rabbitmq:
-    host: ${RABBIT_HOST:localhost}
-    port: 5672
-    username: ${RABBIT_USER:guest}
-    password: ${RABBIT_PASSWORD:guest}
-    listener:
-      simple:
-        auto-startup: ${RABBIT_ENABLED:false}   # false tant que RabbitMQ n'est pas lancé
-        default-requeue-rejected: false          # après les essais, on ne reboucle pas à l'infini
-        retry:
-          enabled: true
-          max-attempts: 3
-          initial-interval: 2000ms
-
   cloud:
     openfeign:
-      circuitbreaker:
-        enabled: true          # Resilience4j protège l'appel Feign vers Flotte
       client:
         config:
           default:
             connectTimeout: 2000   # ms
             readTimeout: 3000      # ms
 
-eureka:
-  client:
-    # false tant qu'Eureka n'est pas lancé ; mettre EUREKA_ENABLED=true ensuite
-    enabled: ${EUREKA_ENABLED:false}
-    service-url:
-      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka}
-
-# Adresse directe du service Flotte (sert quand Eureka est désactivé).
+# Appels vers les autres microservices (adresses directes ; Eureka viendra à l'intégration)
 rentify:
-  flotte:
-    url: ${FLOTTE_URL:http://localhost:8081}
-  events:
-    exchange: rentify.events
+  contrats:
+    url: ${CONTRATS_URL:http://localhost:8083}
+  reservation:
+    url: ${RESERVATION_URL:http://localhost:8082}
+  infractions:
+    url: ${INFRACTIONS_URL:http://localhost:8084}
 
 management:
   endpoints:
     web:
       exposure:
-        include: health,info
-  health:
-    rabbit:
-      enabled: ${RABBIT_ENABLED:false}
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+
+# ===== Service Discovery (chapitre 4) : Eureka Client =====
+# Inactif par défaut ; activé par le profil "eureka" (voir application-eureka.yml).
+eureka:
+  client:
+    enabled: ${EUREKA_ENABLED:false}
+    register-with-eureka: true
+    fetch-registry: true
+    healthcheck:
+      enabled: true            # le statut de /actuator/health est publié dans Eureka
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka}
+  instance:
+    prefer-ip-address: true
+
+# Visible dans /actuator/info et dans le dashboard Eureka
+info:
+  app:
+    name: facturation-service
+    description: Rentify - microservice facturation
