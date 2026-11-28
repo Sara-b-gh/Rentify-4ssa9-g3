@@ -26,3 +26,10 @@ Microservice de gestion de la maintenance et des reparations des vehicules pour 
   "dateDebut": "2026-12-10",
   "dateFin": "2026-12-11"
 }
+Verifier le code 201 et la ligne dans maintenance_db via phpMyAdmin.
+
+Appeler GET /api/interventions?vehiculeId=1 et verifier le code 200.
+
+Appeler PATCH /api/interventions/1/terminer?cout=150.0 et verifier le code 200 et le statut TERMINEE.
+
+Test de panne (503) : arreter flotte-service (8081) puis relancer POST /api/interventions -> verifier le code 503 et l'absence d'enregistrement en base.
