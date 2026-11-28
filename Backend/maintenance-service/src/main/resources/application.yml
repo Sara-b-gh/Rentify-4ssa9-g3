@@ -1,19 +1,22 @@
 server:
-  port: 8082
+  port: 8086
 
 spring:
   application:
     name: maintenance-service
   datasource:
-    url: jdbc:h2:mem:maintenancedb
-    driver-class-name: org.h2.Driver
-    username: sa
-    password: password
+    url: jdbc:mysql://localhost:3306/maintenance_db?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    username: root
+    password:
+    driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
-    database-platform: org.hibernate.dialect.H2Dialect
     hibernate:
       ddl-auto: update
     show-sql: true
-  h2:
-    console:
-      enabled: true
+    properties:
+      hibernate:
+        format_sql: true
+
+rentify:
+  flotte:
+    base-url: http://localhost:8081
