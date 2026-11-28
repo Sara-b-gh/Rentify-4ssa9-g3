@@ -14,6 +14,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @Transactional
@@ -52,6 +53,8 @@ public class InterventionService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Conflit avec une intervention existante");
         }
 
+        creerPeriodeIndisponibleDansFlotte(vehiculeId, dateDebut, dateFin);
+
         Intervention intervention = Intervention.planifier(vehiculeId, technicienId, type, dateDebut, dateFin);
         return interventionRepository.save(intervention);
     }
@@ -79,7 +82,23 @@ public class InterventionService {
 
     private void verifierVehiculeExiste(Long vehiculeId) {
         try {
-            restTemplate.getForEntity(flotteBaseUrl + "/api/vehicules/" + vehiculeId + "/disponibilite", String.class);
+            restTemplate.getForEntity(flotteBaseUrl + "/api/vehicules/" + vehiculeId, String.class);
+        } catch (HttpClientErrorException.NotFound ex) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Vehicule introuvable dans Flotte");
+        } catch (RestClientException ex) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Service Flotte indisponible");
+        }
+    }
+
+    private void creerPeriodeIndisponibleDansFlotte(Long vehiculeId, LocalDate dateDebut, LocalDate dateFin) {
+        try {
+            Map<String, Object> payload = Map.of(
+                    "vehiculeId", vehiculeId,
+                    "dateDebut", dateDebut.toString(),
+                    "dateFin", dateFin.toString(),
+                    "motif", "MAINTENANCE"
+            );
+            restTemplate.postForEntity(flotteBaseUrl + "/api/periodes-indisponibles", payload, String.class);
         } catch (HttpClientErrorException.NotFound ex) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Vehicule introuvable dans Flotte");
         } catch (RestClientException ex) {
